@@ -134,7 +134,7 @@ The Windows Python scanner connects to Kali using the Kali VM IP.
 For the local development environment, the Juice Shop target is reachable from Windows as:
 
 ```text
-http://192.168.56.101:3000
+http://<KALI_VM_IP>:3000
 ```
 
 Inside Kali Linux, the same Juice Shop instance is available at:
@@ -166,7 +166,7 @@ http://localhost:3000
 From the Windows machine, the target is:
 
 ```text
-http://192.168.56.101:3000
+http://<KALI_VM_IP>:3000
 ```
 
 This project should only be used against systems that are owned by the team or where explicit authorization has been provided to test them.
@@ -193,6 +193,7 @@ ZAP should listen on:
 ```text
 0.0.0.0:8080
 ```
+
 ## Security Note
 
 The ZAP API is exposed on the Kali VM network interface so that the Windows scanner client can communicate with it.
@@ -238,6 +239,7 @@ From Windows PowerShell:
 
 ```powershell
 curl.exe "http://<KALI_VM_IP>:8080/JSON/core/view/version/?apikey=YOUR_ZAP_API_KEY"
+```
 
 Expected:
 
@@ -356,9 +358,9 @@ TARGET_URL
 Example:
 
 ```powershell
-$env:KALI_HOST="192.168.56.101"
-$env:KALI_USER="darshan"
-$env:TARGET_URL="http://192.168.56.101:3000"
+$env:KALI_HOST="<KALI_VM_IP>"
+$env:KALI_USER="<KALI_USER>"
+$env:TARGET_URL="http://<KALI_VM_IP>:3000"
 ```
 
 The values can be verified using:
@@ -372,7 +374,7 @@ echo $env:TARGET_URL
 The Nuclei client invokes Nuclei remotely using:
 
 ```text
-ssh <KALI_USER>@<KALI_HOST>
+ssh <KALI_USER>@<KALI_VM_IP>
 ```
 
 and requests machine-readable JSONL output.
@@ -396,7 +398,7 @@ The Windows machine uses SSH to execute Nuclei on Kali Linux.
 Verify SSH connectivity:
 
 ```powershell
-ssh darshan@192.168.56.101 "nuclei -version"
+ssh <KALI_USER>@<KALI_VM_IP> "nuclei -version"
 ```
 
 SSH key-based authentication is configured so that the Python scanner can execute the command without requiring an interactive password.
@@ -425,15 +427,15 @@ Before running the Python Nuclei scanner, make sure:
 Set the required environment variables in PowerShell:
 
 ```powershell
-$env:KALI_HOST="192.168.56.101"
-$env:KALI_USER="darshan"
-$env:TARGET_URL="http://192.168.56.101:3000"
+$env:KALI_HOST="<KALI_VM_IP>"
+$env:KALI_USER="<KALI_USER>"
+$env:TARGET_URL="http://<KALI_VM_IP>:3000"
 ```
 
 Test Nuclei through SSH:
 
 ```powershell
-ssh darshan@192.168.56.101 "nuclei -version"
+ssh <KALI_USER>@<KALI_VM_IP> "nuclei -version"
 ```
 
 Run the Python client:
@@ -446,7 +448,7 @@ Expected workflow:
 
 ```text
 Starting Nuclei scan...
-Target: http://192.168.56.101:3000
+Target: http://<KALI_VM_IP>:3000
 
 Nuclei scan completed.
 Total findings: ...
@@ -482,7 +484,7 @@ Severity:
 info
 
 Matched At:
-http://192.168.56.101:3000
+http://<KALI_VM_IP>:3000
 ```
 
 Other technology detection templates may also identify the application and its technologies.
@@ -614,9 +616,9 @@ Before running the Python scanner, make sure:
 Example:
 
 ```powershell
-$env:ZAP_HOST="192.168.56.101"
+$env:ZAP_HOST="<KALI_VM_IP>"
 $env:ZAP_PORT="8080"
-$env:TARGET_URL="http://192.168.56.101:3000"
+$env:TARGET_URL="http://<KALI_VM_IP>:3000"
 $env:ZAP_API_KEY="YOUR_ZAP_API_KEY"
 ```
 
@@ -689,7 +691,7 @@ The limits are especially useful with Juice Shop because the application can exp
 The current authorized development target is:
 
 ```text
-http://192.168.56.101:3000
+http://<KALI_VM_IP>:3000
 ```
 
 Inside Kali Linux, this same local Juice Shop instance is available at:
@@ -1164,17 +1166,17 @@ Set scanner-specific environment variables as required.
 For Nuclei:
 
 ```powershell
-$env:KALI_HOST="192.168.56.101"
-$env:KALI_USER="darshan"
-$env:TARGET_URL="http://192.168.56.101:3000"
+$env:KALI_HOST="<KALI_VM_IP>"
+$env:KALI_USER="<KALI_USER>"
+$env:TARGET_URL="http://<KALI_VM_IP>:3000"
 ```
 
 For ZAP:
 
 ```powershell
-$env:ZAP_HOST="192.168.56.101"
+$env:ZAP_HOST="<KALI_VM_IP>"
 $env:ZAP_PORT="8080"
-$env:TARGET_URL="http://192.168.56.101:3000"
+$env:TARGET_URL="http://<KALI_VM_IP>:3000"
 $env:ZAP_API_KEY="YOUR_ZAP_API_KEY"
 ```
 
