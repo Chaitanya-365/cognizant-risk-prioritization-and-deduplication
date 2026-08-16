@@ -108,7 +108,7 @@ This separates server configuration from application code.
 On Windows PowerShell:
 
 ```powershell
-$env:KALI_SCANNER_API="http://192.168.93.129:5000"
+$env:KALI_SCANNER_API="http://<SCANNER_SERVER_IP>:5000"
 ```
 
 Then run:
@@ -212,7 +212,7 @@ fi
 Configure the Scanner API address:
 
 ```powershell
-$env:KALI_SCANNER_API="http://192.168.93.129:5000"
+$env:KALI_SCANNER_API="http://<SCANNER_SERVER_IP>:5000"
 ```
 
 For a future centralized deployment:
