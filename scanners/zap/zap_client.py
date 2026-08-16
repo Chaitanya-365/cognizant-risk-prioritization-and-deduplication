@@ -8,10 +8,9 @@ from zapv2 import ZAPv2
 # Configuration
 # ============================================================
 
-ZAP_HOST = "192.168.93.129"  
-ZAP_PORT = 8080
-
-TARGET = "http://localhost:3000"
+ZAP_HOST = os.getenv("ZAP_HOST", "192.168.93.129")
+ZAP_PORT = int(os.getenv("ZAP_PORT", "8080"))
+TARGET = os.getenv("TARGET_URL", "http://localhost:3000")
 
 API_KEY = os.getenv("ZAP_API_KEY")
 
@@ -19,6 +18,14 @@ API_KEY = os.getenv("ZAP_API_KEY")
 # ============================================================
 # Validate configuration
 # ============================================================
+if not ZAP_HOST:
+    raise RuntimeError("ZAP_HOST environment variable is not set")
+
+if not ZAP_PORT:
+    raise RuntimeError("ZAP_PORT environment variable is not set")
+
+if not TARGET:
+    raise RuntimeError("TARGET_URL environment variable is not set")
 
 if not API_KEY:
     raise RuntimeError(

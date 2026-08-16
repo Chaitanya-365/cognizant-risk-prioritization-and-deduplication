@@ -117,7 +117,7 @@ Windows
    |
    v
 Kali Linux
-192.168.93.129
+<KALI_VM_IP>
    |
    +---- ZAP :8080
    |
@@ -156,9 +156,11 @@ This project should only be used against systems that are owned by the team or w
 
 # OWASP ZAP Setup
 
-ZAP is running in Kali Linux as a daemon.
+ZAP runs inside Kali Linux as a daemon.
 
-Start ZAP:
+For the current Windows ↔ Kali VM development setup, ZAP must be reachable from the Windows host.
+
+Start ZAP in Kali:
 
 ```bash
 zaproxy -daemon -host 0.0.0.0 -port 8080 \
@@ -172,11 +174,27 @@ ZAP should listen on:
 ```text
 0.0.0.0:8080
 ```
+## Security Note
+
+The ZAP API is exposed on the Kali VM network interface so that the Windows scanner client can communicate with it.
+
+This configuration is intended only for the isolated development/lab environment.
+
+Do not:
+
+- Port-forward ZAP port `8080` to the public Internet.
+- Expose the ZAP API to untrusted networks.
+- Share the ZAP API key.
+- Hard-code the ZAP API key in source code.
+
+The ZAP API key should be supplied through the `ZAP_API_KEY` environment variable.
+
+For environments where the scanner and ZAP run on the same machine, prefer binding ZAP to localhost instead of exposing it on all interfaces.
 
 The Windows machine connects to the ZAP API through the Kali VM IP:
 
 ```text
-http://192.168.93.129:8080
+http://<KALI_VM_IP>:8080
 ```
 
 ---
@@ -200,7 +218,7 @@ Expected response:
 From Windows PowerShell:
 
 ```powershell
-curl.exe "http://192.168.93.129:8080/JSON/core/view/version/?apikey=YOUR_ZAP_API_KEY"
+curl.exe "http://<KALI_VM_IP>:8080/JSON/core/view/version/?apikey=YOUR_ZAP_API_KEY"
 ```
 
 Expected:
@@ -252,7 +270,7 @@ Never commit the actual API key to GitHub.
 Go to the project root:
 
 ```powershell
-cd E:\BE\Cognizant\scanner-vulnerability-management
+cd scanner-vulnerability-management
 ```
 
 Create the virtual environment:
