@@ -8,9 +8,9 @@ from zapv2 import ZAPv2
 # Configuration
 # ============================================================
 
-ZAP_HOST = os.getenv("ZAP_HOST", "192.168.93.129")
-ZAP_PORT = int(os.getenv("ZAP_PORT", "8080"))
-TARGET = os.getenv("TARGET_URL", "http://localhost:3000")
+ZAP_HOST = os.getenv("ZAP_HOST")
+ZAP_PORT = int(os.getenv("ZAP_PORT"))
+TARGET = os.getenv("TARGET_URL")
 
 API_KEY = os.getenv("ZAP_API_KEY")
 
