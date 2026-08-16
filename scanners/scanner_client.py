@@ -8,9 +8,12 @@ import requests
 # ============================================================
 
 KALI_SCANNER_API = os.getenv(
-    "KALI_SCANNER_API",
-    "http://192.168.93.129:5000"
+    "KALI_SCANNER_API"
 )
+if not KALI_SCANNER_API:
+    raise RuntimeError(
+        "KALI_SCANNER_API environment variable is not set"
+    )
 
 POLL_INTERVAL = 2
 
