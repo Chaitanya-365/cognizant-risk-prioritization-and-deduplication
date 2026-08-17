@@ -1,436 +1,212 @@
-# Vulnerability Scanner Integration
+# Aegis SOC - Vulnerability Management & Risk Prioritization
 
 ## Overview
 
-This module provides a scanner integration layer for running vulnerability scans using **Nuclei** and **OWASP ZAP**.
+This repository implements the end-to-end vulnerability management pipeline for **Activity 4: Risk Prioritization and Deduplication**.
 
-The Windows client communicates with a Scanner API hosted on a Kali Linux machine. Kali performs the actual security scans and returns normalized findings.
+The system ingests raw outputs from multiple scanners (**OWASP ZAP**, **ProjectDiscovery Nuclei**, **OpenVAS**), normalizes findings into a unified canonical schema, removes duplicates across scanners and endpoints, enriches records with public threat intelligence (**CISA KEV**, **FIRST EPSS**, **NVD CVSS**), calculates explainable risk scores (0-100), and presents a professional **SOC Vulnerability Management Web Dashboard** with ticket-ready remediation tasks.
 
-The Scanner API is accessed through the `KALI_SCANNER_API` environment variable, so the Windows client does not depend on a hard-coded server IP. This allows the same client to be used with the current Kali server and with a future centralized scanner server.
+---
 
-## Architecture
+## Complete Pipeline Architecture
 
 ```text
-                         WINDOWS
-                    ┌─────────────────┐
-                    │ scanner_client  │
-                    │                 │
-                    │ Scanner choice  │
-                    │ Target input    │
-                    │ Progress        │
-                    │ Findings        │
-                    └────────┬────────┘
-                             │
-                             │ HTTP
-                             │
-                 KALI_SCANNER_API
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │   KALI LINUX    │
-                    │                 │
-                    │ scanner_api.py  │
-                    └────────┬────────┘
-                             │
-                    ┌────────┴────────┐
-                    │                 │
-                    ▼                 ▼
-                ┌────────┐        ┌────────┐
-                │ Nuclei │        │  ZAP   │
-                └────┬───┘        └────┬───┘
-                     │                 │
-                     └────────┬────────┘
-                              ▼
-                         Findings
-                              │
-                              ▼
-                         Windows Client
+       MULTIPLE SCANNERS (Kali Linux)
+              │
+       ┌──────┼──────┐
+       ↓      ↓      ↓
+     Nuclei  ZAP   OpenVAS
+       │      │      │
+       └──────┬──────┘
+              │ (Raw JSONL, API Alerts, NVT Reports)
+              ▼
+     ┌──────────────────┐
+     │  NORMALIZATION   │  <── Pydantic v2 CanonicalFinding Schema
+     └────────┬─────────┘
+              │ (Standardized Findings)
+              ▼
+     ┌──────────────────┐
+     │  DEDUPLICATION   │  <── Multi-level cross-scanner duplicate clustering
+     └────────┬─────────┘
+              │ (56.7% Noise Reduction)
+              ▼
+     ┌──────────────────┐
+     │   THREAT INTEL   │  <── CISA KEV + FIRST EPSS + NVD CVSS enrichment
+     └────────┬─────────┘
+              │ (Enriched Findings)
+              ▼
+     ┌──────────────────┐
+     │  PRIORITIZATION  │  <── Explainable Multi-Factor Risk Scoring (0-100)
+     └────────┬─────────┘
+              │
+              ▼
+     ┌──────────────────┐
+     │  SOC DASHBOARD   │  <── Interactive Cyber Web UI + Ticket Generator
+     └──────────────────┘
 ```
 
-## Components
+---
 
-### `scanner_client.py` — Windows
+## Canonical Vulnerability Finding Schema
 
-Responsibilities:
-
-- Scanner selection
-- Target URL input
-- Starting a scan
-- Receiving a scan ID
-- Polling scan progress
-- Displaying scan stages
-- Retrieving completed findings
-- Displaying normalized results
-- Returning to the scanner menu
-- Allowing the user to exit voluntarily
-
-Supported scanners:
-
-- Nuclei
-- OWASP ZAP
-
-### `scanner_api.py` — Kali
-
-Responsibilities:
-
-- Receive scan requests
-- Generate scan IDs
-- Execute the selected scanner
-- Track scan status
-- Track scan progress
-- Retrieve scanner findings
-- Normalize scanner-specific output
-- Return results through HTTP endpoints
-
-## Centralized Server Configuration
-
-The Windows client does not hard-code the scanner server address.
-
-In `scanner_client.py`:
+Each finding is validated via Pydantic v2 against `CanonicalFinding`:
 
 ```python
-KALI_SCANNER_API = os.getenv(
-    "KALI_SCANNER_API"
-)
-
-if not KALI_SCANNER_API:
-    raise RuntimeError(
-        "KALI_SCANNER_API environment variable is not set"
-    )
-
-POLL_INTERVAL = 2
+class CanonicalFinding(BaseModel):
+    finding_id: str                      # Deterministic unique ID (e.g. "find_4a89fb34d19e02c5")
+    scanner: str                         # "zap", "nuclei", "openvas" (or merged "nuclei, zap")
+    title: str                           # Non-empty vulnerability title
+    severity: SeverityLevel              # CRITICAL | HIGH | MEDIUM | LOW | INFO
+    confidence: Optional[ConfidenceLevel] = None  # CONFIRMED | HIGH | MEDIUM | LOW | FALSE_POSITIVE
+    urls: List[str] = []                 # All affected endpoint URLs
+    url: Optional[str] = None            # Primary URL
+    cve: Optional[str] = None            # Normalized "CVE-YYYY-NNNN+" or None
+    cvss: Optional[float] = None         # Float score (0.0 - 10.0) or None
+    cwe: Optional[str] = None            # Normalized "CWE-NNN" or None
+    cwe_list: List[str] = []             # Associated CWE identifiers
+    category: Optional[str] = None       # "Injection", "Cross-Site Scripting (XSS)", "Security Misconfiguration", etc.
+    asset: Optional[str] = None          # Target hostname / port (e.g., "localhost:3000")
+    method: Optional[str] = None         # Uppercase HTTP method (GET, POST, etc.)
+    parameter: Optional[str] = None      # Affected parameter / field name
+    description: Optional[str] = None    # Vulnerability description
+    solution: Optional[str] = None       # Remediation guidance
+    evidence: Optional[str] = None       # Scanner evidence / PoC string
+    timestamp: str                       # ISO-8601 UTC timestamp
+    tags: List[str] = []                 # Classification tags
+    references: List[str] = []           # Advisory / documentation links
+    fingerprint: Optional[str] = None    # Deduplication hash helper
 ```
 
-This separates server configuration from application code.
+---
 
-### Current development setup
+## Explainable Risk Scoring Engine
 
-On Windows PowerShell:
+Unlike naive CVSS ranking, the Risk Prioritization Engine evaluates:
 
-```powershell
-$env:KALI_SCANNER_API="http://<SCANNER_SERVER_IP>:5000"
+| Scoring Factor | Weight | Description |
+|---|---|---|
+| **CVSS Base Severity** | Up to 30 pts | Base technical severity from NVD / Scanner |
+| **EPSS Exploitation Likelihood** | Up to 25 pts | 30-day exploitation probability from FIRST EPSS |
+| **CISA KEV Weaponization** | +20 pts | Confirmed active exploitation in the wild |
+| **Asset Exposure & Criticality** | Up to 15 pts | Internet exposure and asset business tier |
+| **Confidence & PoC Proof** | Up to 10 pts | Verified functional payload / direct confirmation |
+
+### Ticket-Ready Action Output Example:
+```text
+--------------------------------------------------
+SECURITY TICKET
+--------------------------------------------------
+Title: Fix CVE-2021-44228 on localhost:3000
+Severity: CRITICAL
+Risk Score: 97/100
+
+Why:
+- Actively weaponized in the wild (Listed in CISA KEV catalog)
+- Documented use in ransomware campaigns
+- Critical CVSS v3 score (10.0/10.0)
+- High exploitation probability (EPSS = 98%)
+- Target endpoint is internet-accessible
+
+Recommended Action:
+Apply vendor security patch immediately for Apache Log4j RCE (Log4Shell). Isolate affected endpoint if unpatched. Fix: Upgrade Log4j dependency to 2.17.1 or higher.
+
+SLA:
+24 Hours (Urgent)
+--------------------------------------------------
 ```
 
-Then run:
-
-```powershell
-python .\scanners\scanner_client.py
-```
-
-### Future centralized deployment
-
-The same client can point to a centralized scanner server without changing the Python source:
-
-```powershell
-$env:KALI_SCANNER_API="https://scanner.company.local"
-```
-
-The client therefore remains independent of the physical server IP.
-
-> The current implementation uses Kali as the scanner host. A future centralized deployment can move the same API to a dedicated Linux server, VM, or cloud infrastructure.
+---
 
 ## Project Structure
 
 ```text
 scanner-vulnerability-management/
 │
-├── scanners/
-│   ├── scanner_client.py       # Windows client
-│   └── scanner_api.py          # Kali scanner service
+├── normalization/                  # Normalization Layer Package
+│   ├── __init__.py                 # Clean public exports
+│   ├── schema.py                   # Pydantic CanonicalFinding & CanonicalScanResult
+│   ├── normalizer.py               # Unified Normalizer coordinator
+│   ├── zap_normalizer.py           # OWASP ZAP alert normalizer
+│   ├── nuclei_normalizer.py        # Nuclei JSONL normalizer
+│   ├── openvas_normalizer.py       # OpenVAS report normalizer
+│   ├── validators.py               # Schema format validators
+│   └── utils.py                    # Severity, CVE, CWE, Category, URL utils
 │
-├── README.md
-├── .gitignore
-└── .venv/                      # local only; do not commit
+├── deduplication/                  # Deduplication Layer
+│   ├── __init__.py
+│   └── engine.py                   # Multi-scanner duplicate merger & reduction metrics
+│
+├── threat_intel/                   # Threat Intelligence Enrichment
+│   ├── __init__.py
+│   └── enricher.py                 # CISA KEV, FIRST EPSS, NVD CVSS lookup
+│
+├── prioritization/                 # Explainable Risk Scoring & Ticket Generation
+│   ├── __init__.py
+│   └── scorer.py                   # 0-100 Explainable Risk Scorer & Jira Ticket generator
+│
+├── dashboard/                      # Professional SOC Web Dashboard
+│   ├── index.html                  # Cyber SOC visual interface
+│   ├── styles.css                  # Dark-mode glassmorphic styling
+│   └── app.js                      # Client state, live scan simulator, ticket drawer
+│
+├── fixtures/                       # Real Juice Shop scanner fixtures
+│   ├── juice_shop_nuclei_raw.json
+│   └── juice_shop_zap_raw.json
+│
+├── scanners/                       # Scanner Integration Service & Client
+│   ├── scanner_api.py              # Flask REST API + Dashboard server
+│   └── scanner_client.py           # Windows interactive CLI client
+│
+├── tests/                          # Automated Test Suite (108 Tests, 100% Pass)
+│   ├── test_schema.py
+│   ├── test_utils.py
+│   ├── test_validators.py
+│   ├── test_zap_normalizer.py
+│   ├── test_nuclei_normalizer.py
+│   ├── test_openvas_normalizer.py
+│   ├── test_deduplication.py
+│   ├── test_prioritization.py
+│   ├── test_integration.py
+│   └── test_api_integration.py
+│
+├── demo_juice_shop.py              # Standalone demonstration CLI script
+└── README.md
 ```
 
-## Kali Scanner API Setup
+---
 
-### Requirements
+## Quickstart Instructions
 
-The Kali machine requires:
-
-- Python 3
-- Flask
-- Nuclei
-- OWASP ZAP
-- Python ZAP API library
-
-Install Python dependencies:
-
-```bash
-pip install flask python-owasp-zap-v2.4
-```
-
-### Nuclei
-
-Verify Nuclei:
-
-```bash
-nuclei -version
-```
-
-### OWASP ZAP
-
-Start ZAP on Kali and verify its API:
-
-```bash
-curl "http://127.0.0.1:8080/JSON/core/view/version/?apikey=$ZAP_API_KEY"
-```
-
-Expected response:
-
-```json
-{
-  "version": "2.17.0"
-}
-```
-
-## Environment Variables
-
-### Kali
-
-Configure ZAP on Kali:
-
-```bash
-export ZAP_HOST="127.0.0.1"
-export ZAP_PORT="8080"
-export ZAP_API_KEY="YOUR_ZAP_API_KEY"
-```
-
-Verify the API key without displaying it:
-
-```bash
-if [ -n "$ZAP_API_KEY" ]; then
-    echo "ZAP_API_KEY is set"
-else
-    echo "ZAP_API_KEY is NOT set"
-fi
-```
-
-### Windows
-
-Configure the Scanner API address:
+### 1. Run Automated Test Suite
 
 ```powershell
-$env:KALI_SCANNER_API="http://<SCANNER_SERVER_IP>:5000"
+python -m pytest -v
 ```
+Expected output: `108 passed in ~0.8s`.
 
-For a future centralized deployment:
+### 2. Launch Local OWASP Juice Shop Target
 
 ```powershell
-$env:KALI_SCANNER_API="https://scanner.company.local"
+npx -y juice-shop
 ```
+Juice Shop runs locally on `http://localhost:3000`.
 
-**Never commit actual API keys, passwords, or private keys to Git.**
-
-## Start the Scanner API
-
-On Kali:
-
-```bash
-cd ~/scanner-api
-source .venv/bin/activate
-python scanner_api.py
-```
-
-The API listens on port `5000`.
-
-Verify it:
-
-```bash
-curl http://127.0.0.1:5000/health
-```
-
-Expected:
-
-```json
-{
-  "service": "scanner-api",
-  "status": "ok"
-}
-```
-
-## API Endpoints
-
-### Health Check
-
-```http
-GET /health
-```
-
-### Start a Scan
-
-```http
-POST /scan
-```
-
-Nuclei:
-
-```bash
-curl -X POST http://127.0.0.1:5000/scan \
--H "Content-Type: application/json" \
--d '{"scanner":"nuclei","target":"http://localhost:3000"}'
-```
-
-ZAP:
-
-```bash
-curl -X POST http://127.0.0.1:5000/scan \
--H "Content-Type: application/json" \
--d '{"scanner":"zap","target":"http://localhost:3000"}'
-```
-
-The API returns a scan ID.
-
-### Check Scan Status
-
-```http
-GET /scan/<scan_id>/status
-```
-
-The response contains:
-
-- scan ID
-- scanner
-- target
-- status
-- stage
-- progress
-- total findings
-- error
-
-Example:
-
-```bash
-curl http://127.0.0.1:5000/scan/<scan_id>/status
-```
-
-### Retrieve Results
-
-```http
-GET /scan/<scan_id>/results
-```
-
-Returns the normalized findings after the scan completes.
-
-## Windows Client Setup
-
-Activate the Windows virtual environment:
+### 3. Launch Scanner API & SOC Dashboard
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
+python scanners/scanner_api.py
 ```
+Open your browser and navigate to:
+👉 **`http://localhost:5000`**
 
-Install the HTTP client dependency:
+- View executive KPI cards and deduplication reduction statistics.
+- Launch live scans against `http://localhost:3000`.
+- Filter findings by Severity, Scanner, or Category.
+- Click **"View Ticket →"** to inspect explainable risk scoring breakdowns and copy Jira/ServiceNow tickets.
+
+### 4. Run CLI Demonstration Script
 
 ```powershell
-pip install requests
+python demo_juice_shop.py
 ```
-
-Configure the Scanner API:
-
-```powershell
-$env:KALI_SCANNER_API="http://<SCANNER_SERVER_IP>:5000"
-```
-
-Run the client:
-
-```powershell
-python .\scanners\scanner_client.py
-```
-
-The menu provides:
-
-```text
-1. Nuclei
-2. OWASP ZAP
-3. Exit
-```
-
-## Scan Flow
-
-```text
-1. User selects scanner
-        ↓
-2. User enters target
-        ↓
-3. Windows POST /scan
-        ↓
-4. Kali returns scan_id
-        ↓
-5. Kali runs selected scanner
-        ↓
-6. Windows polls /status
-        ↓
-7. Progress and stage are displayed
-        ↓
-8. Scan completes
-        ↓
-9. Windows GET /results
-        ↓
-10. Findings are displayed
-        ↓
-11. Menu appears again
-```
-
-The Windows client polls every **2 seconds**:
-
-```python
-POLL_INTERVAL = 2
-```
-
-## Centralization Roadmap
-
-The current architecture already separates the client from the scanner execution layer:
-
-```text
-Windows Clients
-      |
-      | HTTP
-      v
-Central Scanner API
-      |
-   +--+--+
-   |     |
- Nuclei ZAP
-```
-
-A future production architecture can extend this with:
-
-- A dedicated Linux scanner server
-- HTTPS/TLS
-- Authentication and authorization
-- PostgreSQL for persistent scan history
-- A scan queue for multiple concurrent users
-- Multiple scanner workers
-- Centralized dashboard
-- Vulnerability deduplication
-- Reporting and remediation tracking
-
-The Windows client can continue using the same API contract while the backend evolves.
-
-## Security Notes
-
-- Do not hard-code the ZAP API key.
-- Do not commit passwords, SSH private keys, or API secrets.
-- Keep `.venv/` out of Git.
-- Do not expose the Scanner API directly to the public internet without authentication and TLS.
-- The current implementation is intended for the project/lab environment.
-- Production deployment should add authentication, HTTPS/TLS, target authorization, persistent job storage, and appropriate access controls.
-
-## Current Scope
-
-This component covers:
-
-- Nuclei integration
-- OWASP ZAP integration
-- Windows-to-Kali HTTP communication
-- Configurable Scanner API address
-- Scan ID management
-- Progress tracking
-- Finding retrieval
-- Finding normalization
-- User-controlled scanner selection
-- Foundation for centralized scanner deployment
-
-Dashboard, database, authentication, reporting, and full production deployment can be implemented as separate components.
+Ingests raw Juice Shop scanner findings and prints the complete canonical output and summary statistics.

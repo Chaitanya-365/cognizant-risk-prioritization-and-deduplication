@@ -1,23 +1,106 @@
-from flask import Flask, jsonify, request
 import json
 import os
 import subprocess
+import sys
 import threading
 import time
 import uuid
 
-from zapv2 import ZAPv2
+from flask import Flask, jsonify, request, send_from_directory
+
+# Ensure repository root is on sys.path for normalization imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from zapv2 import ZAPv2
+except ImportError:
+    ZAPv2 = None
+
+from deduplication import deduplicate_findings
+from normalization import CanonicalFinding, NucleiNormalizer, OpenVASNormalizer, ZAPNormalizer, normalize_findings
+from prioritization import prioritize_findings
+from threat_intel import enrich_findings
 
 
 app = Flask(__name__)
+DASHBOARD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dashboard")
+FIXTURES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixtures")
+
+
+# ============================================================
+# Dashboard Web UI Routes
+# ============================================================
+
+@app.get("/")
+def dashboard_home():
+    """Serve the SOC Vulnerability Management Dashboard."""
+    return send_from_directory(DASHBOARD_DIR, "index.html")
+
+
+@app.get("/static/<path:filename>")
+def dashboard_static(filename):
+    """Serve static dashboard assets (CSS, JS)."""
+    return send_from_directory(DASHBOARD_DIR, filename)
+
+
+@app.get("/api/dashboard/findings")
+def api_dashboard_findings():
+    """Return prioritized, deduplicated canonical findings with threat intel."""
+    all_raw: list = []
+
+    # Ingest completed scan findings from memory
+    for scan in scans.values():
+        if scan.get("status") == "completed" and scan.get("findings"):
+            all_raw.extend(scan["findings"])
+
+    # If no scans run yet, load realistic Juice Shop scan fixtures
+    if not all_raw:
+        zap_file = os.path.join(FIXTURES_DIR, "juice_shop_zap_raw.json")
+        nuclei_file = os.path.join(FIXTURES_DIR, "juice_shop_nuclei_raw.json")
+
+        if os.path.exists(zap_file):
+            with open(zap_file, "r", encoding="utf-8") as f:
+                all_raw.extend(json.load(f))
+        if os.path.exists(nuclei_file):
+            with open(nuclei_file, "r", encoding="utf-8") as f:
+                all_raw.extend(json.load(f))
+
+    # 1. Normalize
+    canonical_list = normalize_findings(all_raw)
+
+    # 2. Deduplicate
+    dedup_res = deduplicate_findings(canonical_list)
+
+    # 3. Enrich Threat Intel
+    enrich_findings(dedup_res.unique_findings)
+
+    # 4. Prioritize and Score
+    prioritized = prioritize_findings(dedup_res.unique_findings)
+
+    return jsonify({
+        "status": "success",
+        "total_raw": dedup_res.total_raw_count,
+        "unique_count": dedup_res.unique_count,
+        "duplicates_removed": dedup_res.duplicates_removed,
+        "reduction_percentage": dedup_res.reduction_percentage,
+        "findings": [p.to_dict() for p in prioritized]
+    })
+
+
+@app.get("/api/dashboard/stats")
+def api_dashboard_stats():
+    """Return dashboard summary metrics."""
+    res = api_dashboard_findings()
+    data = res.get_json() if hasattr(res, "get_json") else {}
+    return jsonify(data)
 
 
 # ============================================================
 # Configuration
 # ============================================================
 
-ZAP_HOST = os.getenv("ZAP_HOST")
-ZAP_PORT = int(os.getenv("ZAP_PORT"))
+ZAP_HOST = os.getenv("ZAP_HOST", "127.0.0.1")
+ZAP_PORT = int(os.getenv("ZAP_PORT", "8080")) if os.getenv("ZAP_PORT") else 8080
 ZAP_API_KEY = os.getenv("ZAP_API_KEY")
 
 
@@ -256,31 +339,19 @@ def run_nuclei(scan_id, target):
         try:
 
             raw = json.loads(line)
+            canonical = NucleiNormalizer.normalize(raw)
+            findings.append(canonical.to_dict())
 
-            info = raw.get("info", {})
+        except Exception as err:
 
-            findings.append({
-                "scanner": "nuclei",
-                "template_id": raw.get(
-                    "template-id"
-                ),
-                "name": info.get("name"),
-                "severity": info.get("severity"),
-                "matched_at": raw.get(
-                    "matched-at"
-                ),
-                "description": info.get(
-                    "description"
-                ),
-                "reference": info.get(
-                    "reference"
-                ),
-                "tags": info.get("tags")
-            })
-
-        except json.JSONDecodeError:
-
+            print(
+                f"[{scan_id}] Failed to parse/normalize Nuclei line: {err}"
+            )
             continue
+
+    print(
+        f"[{scan_id}] Normalized Nuclei findings: {len(findings)}"
+    )
 
     return findings
 
@@ -296,6 +367,12 @@ def run_zap(scan_id, target):
         raise RuntimeError(
             "ZAP_API_KEY environment variable "
             "is not set"
+        )
+
+    if ZAPv2 is None:
+
+        raise RuntimeError(
+            "zapv2 library is not installed"
         )
 
     print(
@@ -422,7 +499,7 @@ def run_zap(scan_id, target):
     )
 
     # --------------------------------------------------------
-    # Group ZAP Alerts
+    # Group & Normalize ZAP Alerts
     # --------------------------------------------------------
 
     scans[scan_id]["stage"] = "processing_results"
@@ -441,27 +518,25 @@ def run_zap(scan_id, target):
 
             grouped[key] = {
                 "scanner": "zap",
-                "alert_id": alert.get(
-                    "pluginId"
-                ),
+                "pluginId": alert.get("pluginId"),
+                "alert_id": alert.get("pluginId"),
+                "alert": alert.get("alert"),
                 "name": alert.get("alert"),
+                "risk": alert.get("risk"),
                 "severity": alert.get("risk"),
-                "confidence": alert.get(
-                    "confidence"
-                ),
-                "parameter": (
-                    alert.get("param") or ""
-                ),
+                "confidence": alert.get("confidence"),
+                "param": alert.get("param") or "",
+                "parameter": alert.get("param") or "",
+                "cweid": alert.get("cweid"),
                 "cwe": alert.get("cweid"),
-                "description": alert.get(
-                    "description"
-                ),
-                "solution": alert.get(
-                    "solution"
-                ),
-                "reference": alert.get(
-                    "reference"
-                ),
+                "description": alert.get("description"),
+                "solution": alert.get("solution"),
+                "reference": alert.get("reference"),
+                "evidence": alert.get("evidence"),
+                "attack": alert.get("attack"),
+                "method": alert.get("method"),
+                "wascid": alert.get("wascid"),
+                "other": alert.get("other"),
                 "affected_urls": []
             }
 
@@ -476,15 +551,16 @@ def run_zap(scan_id, target):
                 url
             )
 
-    findings = list(
-        grouped.values()
-    )
+    findings = []
 
-    for finding in findings:
+    for alert_data in grouped.values():
 
-        finding["affected_url_count"] = len(
-            finding["affected_urls"]
+        alert_data["affected_url_count"] = len(
+            alert_data["affected_urls"]
         )
+
+        canonical = ZAPNormalizer.normalize(alert_data)
+        findings.append(canonical.to_dict())
 
     print(
         f"[{scan_id}] Raw alerts: "
@@ -492,7 +568,7 @@ def run_zap(scan_id, target):
     )
 
     print(
-        f"[{scan_id}] Grouped findings: "
+        f"[{scan_id}] Normalized findings: "
         f"{len(findings)}"
     )
 
