@@ -1,0 +1,60 @@
+[
+  {
+    "pluginId": "40018",
+    "alert": "SQL Injection - SQLite",
+    "risk": "High",
+    "confidence": "Medium",
+    "url": "http://localhost:3000/rest/products/search?q=apple'))--",
+    "param": "q",
+    "attack": "apple'))--",
+    "evidence": "SQLITE_ERROR: near \")\": syntax error",
+    "cweid": "89",
+    "wascid": "19",
+    "description": "SQL injection vulnerability in Juice Shop product search endpoint allows extracting user credentials and password hashes from sqlite database.",
+    "solution": "Use parameterized prepared statements with Sequelize ORM.",
+    "reference": "https://owasp.org/www-project-juice-shop/\nhttps://cwe.mitre.org/data/definitions/89.html",
+    "method": "GET"
+  },
+  {
+    "pluginId": "40012",
+    "alert": "Cross-Site Scripting (Reflected)",
+    "risk": "High",
+    "confidence": "High",
+    "url": "http://localhost:3000/#/track-result?id=<iframe src=\"javascript:alert(`xss`)\">",
+    "param": "id",
+    "attack": "<iframe src=\"javascript:alert(`xss`)\">",
+    "evidence": "<iframe src=\"javascript:alert(`xss`)\">",
+    "cweid": "79",
+    "wascid": "8",
+    "description": "User-controlled input in order tracking parameter is rendered unsanitized in the browser DOM.",
+    "solution": "Sanitize and encode all untrusted inputs before rendering them in DOM elements.",
+    "reference": "https://owasp.org/www-community/attacks/xss/",
+    "method": "GET"
+  },
+  {
+    "pluginId": "10020",
+    "alert": "Anti-clickjacking Header Not Implemented",
+    "risk": "Medium",
+    "confidence": "Medium",
+    "url": "http://localhost:3000/",
+    "param": "",
+    "cweid": "1021",
+    "description": "The response does not include Content-Security-Policy with frame-ancestors or X-Frame-Options header.",
+    "solution": "Set 'X-Frame-Options: SAMEORIGIN' or 'Content-Security-Policy: frame-ancestors 'self''.",
+    "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options",
+    "method": "GET"
+  },
+  {
+    "pluginId": "10038",
+    "alert": "Content Security Policy (CSP) Header Not Set",
+    "risk": "Medium",
+    "confidence": "High",
+    "url": "http://localhost:3000/",
+    "param": "",
+    "cweid": "693",
+    "description": "Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks, including Cross Site Scripting (XSS) and data injection attacks.",
+    "solution": "Ensure that your web server, application server, load balancer, etc. is configured to set the Content-Security-Policy header.",
+    "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy",
+    "method": "GET"
+  }
+]

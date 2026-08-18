@@ -257,9 +257,11 @@ def run_scan(scanner, target):
 
         print(f"Finding #{index}")
 
+        # Title / Name
+        title = finding.get("title") or finding.get("name")
         print(
-            "Name:",
-            finding.get("name")
+            "Title:",
+            title
         )
 
         print(
@@ -267,57 +269,115 @@ def run_scan(scanner, target):
             finding.get("severity")
         )
 
-        # Nuclei
+        if finding.get("confidence"):
+            print(
+                "Confidence:",
+                finding.get("confidence")
+            )
+
+        if finding.get("cve"):
+            print(
+                "CVE:",
+                finding.get("cve")
+            )
+
+        if finding.get("cvss") is not None:
+            print(
+                "CVSS:",
+                finding.get("cvss")
+            )
+
+        if finding.get("cwe"):
+            print(
+                "CWE:",
+                finding.get("cwe")
+            )
+
+        if finding.get("asset"):
+            print(
+                "Asset:",
+                finding.get("asset")
+            )
+
+        # URL / Matched At
+        url = finding.get("url") or finding.get("matched_at")
+        if url:
+            print(
+                "URL:",
+                url
+            )
+
+        # Nuclei specific
         if scanner == "nuclei":
 
-            print(
-                "Template ID:",
-                finding.get("template_id")
+            template_id = finding.get("template_id") or (
+                finding.get("raw_finding", {}).get("template-id")
+                if isinstance(finding.get("raw_finding"), dict)
+                else None
             )
+            if template_id:
+                print(
+                    "Template ID:",
+                    template_id
+                )
 
-            print(
-                "Matched At:",
-                finding.get("matched_at")
-            )
-
-        # ZAP
+        # ZAP specific
         elif scanner == "zap":
 
-            print(
-                "Alert ID:",
-                finding.get("alert_id")
+            alert_id = finding.get("alert_id") or (
+                finding.get("raw_finding", {}).get("pluginId")
+                if isinstance(finding.get("raw_finding"), dict)
+                else None
             )
-
-            print(
-                "Affected URLs:",
-                finding.get(
-                    "affected_url_count"
+            if alert_id:
+                print(
+                    "Alert ID:",
+                    alert_id
                 )
-            )
 
             urls = finding.get(
                 "affected_urls",
                 []
             )
 
-            for url in urls[:5]:
-
+            if urls:
                 print(
-                    "  -",
-                    url
+                    "Affected URLs:",
+                    len(urls)
                 )
+                for u in urls[:5]:
+                    print(
+                        "  -",
+                        u
+                    )
+                if len(urls) > 5:
+                    print(
+                        f"  ... and {len(urls) - 5} more"
+                    )
 
-            if len(urls) > 5:
+        if finding.get("parameter"):
+            print(
+                "Parameter:",
+                finding.get("parameter")
+            )
 
-                print(
-                    f"  ... and "
-                    f"{len(urls) - 5} more"
-                )
+        if finding.get("evidence"):
+            print(
+                "Evidence:",
+                finding.get("evidence")
+            )
 
-        print(
-            "Description:",
-            finding.get("description")
-        )
+        if finding.get("description"):
+            print(
+                "Description:",
+                finding.get("description")
+            )
+
+        if finding.get("solution"):
+            print(
+                "Solution:",
+                finding.get("solution")
+            )
 
 
 # ============================================================
