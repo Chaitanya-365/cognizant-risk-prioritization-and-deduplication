@@ -8,15 +8,24 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:5000',
-        changeOrigin: true
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {}); // Silently hand over to frontend fallback when backend is offline
+        }
       },
       '/scan': {
         target: 'http://127.0.0.1:5000',
-        changeOrigin: true
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+        }
       },
       '/health': {
         target: 'http://127.0.0.1:5000',
-        changeOrigin: true
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+        }
       }
     }
   }
