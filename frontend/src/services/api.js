@@ -676,7 +676,10 @@ export const api = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scanner, target })
       });
-      if (!res.ok) throw new Error(`Scan launch failed: ${res.status}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Scan launch failed: ${res.status}`);
+      }
       return await res.json();
     } catch (err) {
       console.error("Scan launch error:", err);
@@ -684,10 +687,24 @@ export const api = {
     }
   },
 
-  // Check Scan Status
+  // Check Scan Status & Logs
   async getScanStatus(scanId) {
     const res = await fetch(`/scan/${scanId}/status`);
     if (!res.ok) throw new Error(`Status check failed: ${res.status}`);
+    return await res.json();
+  },
+
+  // Cancel In-Flight Scan
+  async cancelScan(scanId) {
+    const res = await fetch(`/scan/${scanId}/cancel`, { method: "POST" });
+    if (!res.ok) throw new Error(`Scan cancellation failed: ${res.status}`);
+    return await res.json();
+  },
+
+  // Get Complete Pipeline Results for Scan
+  async getScanPipelineResults(scanId) {
+    const res = await fetch(`/scan/${scanId}/pipeline_results`);
+    if (!res.ok) throw new Error(`Pipeline results fetch failed: ${res.status}`);
     return await res.json();
   },
 
@@ -702,3 +719,4 @@ export const api = {
     }
   }
 };
+

@@ -132,6 +132,7 @@ export default function App() {
           {currentTab === 'scan-center' && (
             <Page2_ScanCenter
               onScanComplete={() => loadData(false)}
+              onNavigateTab={(tab) => setCurrentTab(tab)}
               addToast={addToast}
             />
           )}

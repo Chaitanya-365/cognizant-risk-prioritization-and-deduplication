@@ -22,6 +22,7 @@ def test_health_endpoint(client):
     data = response.get_json()
     assert data["service"] == "scanner-api"
     assert data["status"] == "ok"
+    assert "active_scans" in data
 
 
 def test_dashboard_home_route(client):
@@ -43,6 +44,26 @@ def test_dashboard_api_findings(client):
     assert "recommended_action" in first
 
 
+def test_dashboard_api_deduplication(client):
+    response = client.get("/api/dashboard/deduplication")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert "total_raw_count" in data
+    assert "unique_count" in data
+    assert "reduction_percentage" in data
+    assert "duplicate_groups" in data
+
+
+def test_dashboard_api_threat_intel(client):
+    response = client.get("/api/dashboard/threat-intel")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert "intel_records" in data
+    assert len(data["intel_records"]) > 0
+
+
 def test_start_scan_validation(client):
     # Missing target
     res1 = client.post("/scan", json={"scanner": "nuclei"})
@@ -51,6 +72,53 @@ def test_start_scan_validation(client):
     # Unsupported scanner
     res2 = client.post("/scan", json={"scanner": "nessus", "target": "http://example.com"})
     assert res2.status_code == 400
+
+
+def test_start_scan_both_scanners(client):
+    # Test valid scanner="both"
+    res = client.post("/scan", json={"scanner": "both", "target": "http://localhost:3000"})
+    assert res.status_code == 202
+    data = res.get_json()
+    assert "scan_id" in data
+    assert data["scanner"] == "both"
+    assert data["status"] == "started"
+
+
+def test_scan_status_and_cancellation(client):
+    scan_id = "test-cancel-scan-id"
+    scans[scan_id] = {
+        "scan_id": scan_id,
+        "scanner": "both",
+        "target": "http://localhost:3000",
+        "status": "running",
+        "stage": "scanner_execution",
+        "stage_label": "Running scanners",
+        "progress": 30,
+        "findings": [],
+        "raw_findings": [],
+        "total_findings": 0,
+        "unique_count": 0,
+        "duplicates_removed": 0,
+        "reduction_percentage": 0.0,
+        "pipeline_stages": {},
+        "logs": ["[12:00:00] Initializing test scan"],
+        "error": None
+    }
+
+    # Test status endpoint
+    status_res = client.get(f"/scan/{scan_id}/status")
+    assert status_res.status_code == 200
+    status_data = status_res.get_json()
+    assert status_data["scan_id"] == scan_id
+    assert status_data["status"] == "running"
+    assert len(status_data["logs"]) >= 1
+
+    # Test cancel endpoint
+    cancel_res = client.post(f"/scan/{scan_id}/cancel")
+    assert cancel_res.status_code == 200
+    cancel_data = cancel_res.get_json()
+    assert cancel_data["status"] == "cancelled"
+    assert scans[scan_id]["status"] == "cancelled"
 
 
 def test_get_scan_results_normalized(client):
@@ -62,8 +130,12 @@ def test_get_scan_results_normalized(client):
         "target": "http://localhost:3000",
         "status": "completed",
         "stage": "completed",
+        "stage_label": "Pipeline completed",
         "progress": 100,
         "total_findings": 1,
+        "unique_count": 1,
+        "duplicates_removed": 0,
+        "reduction_percentage": 0.0,
         "error": None,
         "findings": [
             {
@@ -104,3 +176,10 @@ def test_get_scan_results_normalized(client):
     assert finding["cve"] == "CVE-2021-44228"
     assert finding["asset"] == "localhost:3000"
     assert finding["url"] == "http://localhost:3000/login"
+
+    # Test pipeline results endpoint
+    pipe_res = client.get(f"/scan/{scan_id}/pipeline_results")
+    assert pipe_res.status_code == 200
+    pipe_data = pipe_res.get_json()
+    assert "metrics" in pipe_data
+    assert pipe_data["metrics"]["raw_count"] == 1
