@@ -20,26 +20,40 @@ from deduplication import deduplicate_findings
 from normalization import CanonicalFinding, NucleiNormalizer, OpenVASNormalizer, ZAPNormalizer, normalize_findings
 from prioritization import prioritize_findings
 from threat_intel import enrich_findings
+from threat_intel.enricher import KNOWN_THREAT_INTEL
 
 
 app = Flask(__name__)
+FRONTEND_DIST_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
 DASHBOARD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dashboard")
 FIXTURES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixtures")
 
 
 # ============================================================
-# Dashboard Web UI Routes
+# Dashboard Web UI Routes (Serves React App or Fallback HTML)
 # ============================================================
 
 @app.get("/")
 def dashboard_home():
     """Serve the SOC Vulnerability Management Dashboard."""
+    if os.path.exists(os.path.join(FRONTEND_DIST_DIR, "index.html")):
+        return send_from_directory(FRONTEND_DIST_DIR, "index.html")
     return send_from_directory(DASHBOARD_DIR, "index.html")
+
+
+@app.get("/assets/<path:filename>")
+def dashboard_react_assets(filename):
+    """Serve React Vite bundled assets (JS, CSS, SVGs)."""
+    if os.path.exists(os.path.join(FRONTEND_DIST_DIR, "assets")):
+        return send_from_directory(os.path.join(FRONTEND_DIST_DIR, "assets"), filename)
+    return jsonify({"error": "Asset not found"}), 404
 
 
 @app.get("/static/<path:filename>")
 def dashboard_static(filename):
     """Serve static dashboard assets (CSS, JS)."""
+    if os.path.exists(os.path.join(FRONTEND_DIST_DIR, filename)):
+        return send_from_directory(FRONTEND_DIST_DIR, filename)
     return send_from_directory(DASHBOARD_DIR, filename)
 
 
@@ -84,6 +98,48 @@ def api_dashboard_findings():
         "duplicates_removed": dedup_res.duplicates_removed,
         "reduction_percentage": dedup_res.reduction_percentage,
         "findings": [p.to_dict() for p in prioritized]
+    })
+
+
+@app.get("/api/dashboard/deduplication")
+def api_dashboard_deduplication():
+    """Return detailed deduplication clusters, duplicate groups, and noise reduction data."""
+    all_raw: list = []
+    for scan in scans.values():
+        if scan.get("status") == "completed" and scan.get("findings"):
+            all_raw.extend(scan["findings"])
+
+    if not all_raw:
+        zap_file = os.path.join(FIXTURES_DIR, "juice_shop_zap_raw.json")
+        nuclei_file = os.path.join(FIXTURES_DIR, "juice_shop_nuclei_raw.json")
+        if os.path.exists(zap_file):
+            with open(zap_file, "r", encoding="utf-8") as f:
+                all_raw.extend(json.load(f))
+        if os.path.exists(nuclei_file):
+            with open(nuclei_file, "r", encoding="utf-8") as f:
+                all_raw.extend(json.load(f))
+
+    canonical_list = normalize_findings(all_raw)
+    dedup_res = deduplicate_findings(canonical_list)
+    return jsonify({
+        "status": "success",
+        "total_raw_count": dedup_res.total_raw_count,
+        "unique_count": dedup_res.unique_count,
+        "duplicates_removed": dedup_res.duplicates_removed,
+        "reduction_percentage": dedup_res.reduction_percentage,
+        "duplicate_groups": [g.model_dump(mode="json") for g in dedup_res.duplicate_groups],
+        "raw_findings_sample": [f.to_dict() for f in canonical_list[:10]]
+    })
+
+
+@app.get("/api/dashboard/threat-intel")
+def api_dashboard_threat_intel():
+    """Return public threat intelligence database records (CISA KEV, EPSS, Exploit availability)."""
+    return jsonify({
+        "status": "success",
+        "catalog_source": "CISA Known Exploited Vulnerabilities (KEV) & FIRST.org EPSS v3",
+        "total_tracked_cves": len(KNOWN_THREAT_INTEL),
+        "intel_records": list(KNOWN_THREAT_INTEL.values())
     })
 
 

@@ -515,6 +515,36 @@ body {
 .badge-low { background: var(--sev-low-bg); color: var(--sev-low); border: 1px solid rgba(59, 130, 246, 0.3); }
 .badge-info { background: var(--sev-info-bg); color: var(--sev-info); border: 1px solid rgba(100, 116, 139, 0.3); }
 
+/* Priority Tiers: P0 / P1 / P2 / P3 */
+.badge-p0 {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ff4d4d;
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  font-weight: 800;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.35);
+}
+
+.badge-p1 {
+  background: rgba(249, 115, 22, 0.2);
+  color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.5);
+  font-weight: 800;
+}
+
+.badge-p2 {
+  background: rgba(234, 179, 8, 0.2);
+  color: #facc15;
+  border: 1px solid rgba(234, 179, 8, 0.5);
+  font-weight: 700;
+}
+
+.badge-p3 {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  font-weight: 600;
+}
+
 .badge-kev {
   background: rgba(244, 63, 94, 0.15);
   color: #fb7185;

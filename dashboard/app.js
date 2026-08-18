@@ -388,7 +388,7 @@ function renderFindingsTable() {
   if (filtered.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+        <td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">
           No matching vulnerabilities found. Try adjusting your filters.
         </td>
       </tr>
@@ -403,19 +403,30 @@ function renderFindingsTable() {
       const sevClass = `badge-${f.severity.toLowerCase()}`;
       const epssDisplay = intel.epss_score ? `${Math.round(intel.epss_score * 100)}%` : 'N/A';
 
+      // Priority Tier (P0 / P1 / P2 / P3)
+      let priorityTier = item.priority || item.priority_label || 'P3';
+      if (!item.priority && !item.priority_label) {
+        if (item.risk_score >= 80 || (intel.in_cisa_kev && item.risk_score >= 65)) priorityTier = 'P0';
+        else if (item.risk_score >= 65) priorityTier = 'P1';
+        else if (item.risk_score >= 40) priorityTier = 'P2';
+        else priorityTier = 'P3';
+      }
+      const priorityClass = `badge-${priorityTier.toLowerCase()}`;
+
       const kevBadge = intel.in_cisa_kev
         ? `<span class="badge badge-kev">⚡ CISA KEV</span>`
         : `<span style="color: var(--text-muted); font-size: 0.75rem;">NO</span>`;
 
       // Risk score color
       let riskColor = 'var(--sev-critical)';
-      if (item.risk_score < 50) riskColor = 'var(--sev-low)';
-      else if (item.risk_score < 70) riskColor = 'var(--sev-medium)';
-      else if (item.risk_score < 85) riskColor = 'var(--sev-high)';
+      if (item.risk_score < 40) riskColor = 'var(--sev-low)';
+      else if (item.risk_score < 65) riskColor = 'var(--sev-medium)';
+      else if (item.risk_score < 80) riskColor = 'var(--sev-high)';
 
       return `
       <tr>
         <td style="font-family: var(--font-mono); font-weight: 700; color: var(--text-muted);">#${item.rank}</td>
+        <td><span class="badge ${priorityClass}">${priorityTier}</span></td>
         <td>
           <div style="font-weight: 600; color: #fff;">${f.title}</div>
           <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.15rem;">
@@ -453,6 +464,29 @@ function openTicketModal(findingId) {
 
   const f = item.finding;
   const intel = item.threat_intel || {};
+
+  let priorityTier = item.priority || item.priority_label || 'P3';
+  if (!item.priority && !item.priority_label) {
+    if (item.risk_score >= 80 || (intel.in_cisa_kev && item.risk_score >= 65)) priorityTier = 'P0';
+    else if (item.risk_score >= 65) priorityTier = 'P1';
+    else if (item.risk_score >= 40) priorityTier = 'P2';
+    else priorityTier = 'P3';
+  }
+
+  const priorityBadgeEl = document.getElementById('modal-priority-badge');
+  if (priorityBadgeEl) {
+    priorityBadgeEl.className = `badge badge-${priorityTier.toLowerCase()}`;
+    priorityBadgeEl.innerText = priorityTier;
+  }
+
+  const priorityTierEl = document.getElementById('modal-priority-tier');
+  if (priorityTierEl) {
+    priorityTierEl.innerText = priorityTier;
+    if (priorityTier === 'P0') priorityTierEl.style.color = '#ff4d4d';
+    else if (priorityTier === 'P1') priorityTierEl.style.color = '#fb923c';
+    else if (priorityTier === 'P2') priorityTierEl.style.color = '#facc15';
+    else priorityTierEl.style.color = '#38bdf8';
+  }
 
   document.getElementById('modal-title').innerText = f.title;
   document.getElementById('modal-cve').innerText = f.cve || 'None';

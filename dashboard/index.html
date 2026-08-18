@@ -196,7 +196,8 @@
           <table class="vulnerability-table">
             <thead>
               <tr>
-                <th style="width: 50px;">Rank</th>
+                <th style="width: 45px;">Rank</th>
+                <th style="width: 75px;">Priority</th>
                 <th>Vulnerability & Category</th>
                 <th>Asset</th>
                 <th>Severity</th>
@@ -220,21 +221,28 @@
       <div class="ticket-drawer">
         <div class="drawer-header">
           <div>
-            <h2 id="modal-title" style="font-size: 1.25rem; font-weight: 700; color: #fff;">Vulnerability Details</h2>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+              <span id="modal-priority-badge" class="badge badge-p0">P0</span>
+              <h2 id="modal-title" style="font-size: 1.25rem; font-weight: 700; color: #fff;">Vulnerability Details</h2>
+            </div>
             <span id="modal-cve" style="color: var(--accent-cyan); font-family: var(--font-mono); font-size: 0.85rem;">CVE-XXXX-XXXX</span>
           </div>
           <button id="modal-close-btn" class="drawer-close">&times;</button>
         </div>
 
         <!-- Risk Summary Box -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
-          <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-md); padding: 1rem; text-align: center;">
-            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Prioritized Risk Score</div>
-            <div id="modal-risk" style="font-size: 2rem; font-family: var(--font-mono); font-weight: 700; color: var(--sev-critical);">97/100</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1.5rem;">
+          <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-md); padding: 0.85rem; text-align: center;">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Priority Tier</div>
+            <div id="modal-priority-tier" style="font-size: 1.6rem; font-family: var(--font-mono); font-weight: 800; color: #ff4d4d; margin-top: 0.2rem;">P0</div>
           </div>
-          <div style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: var(--radius-md); padding: 1rem; text-align: center;">
-            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Remediation SLA</div>
-            <div id="modal-sla" style="font-size: 1.1rem; font-family: var(--font-mono); font-weight: 700; color: var(--accent-cyan); margin-top: 0.4rem;">24 Hours</div>
+          <div style="background: rgba(249, 115, 22, 0.1); border: 1px solid rgba(249, 115, 22, 0.3); border-radius: var(--radius-md); padding: 0.85rem; text-align: center;">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Risk Score</div>
+            <div id="modal-risk" style="font-size: 1.6rem; font-family: var(--font-mono); font-weight: 700; color: var(--sev-critical); margin-top: 0.2rem;">97/100</div>
+          </div>
+          <div style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: var(--radius-md); padding: 0.85rem; text-align: center;">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Remediation SLA</div>
+            <div id="modal-sla" style="font-size: 0.95rem; font-family: var(--font-mono); font-weight: 700; color: var(--accent-cyan); margin-top: 0.4rem;">24 Hours</div>
           </div>
         </div>
 

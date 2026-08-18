@@ -1,0 +1,6 @@
+flask>=3.0.0
+pydantic>=2.5.0
+requests>=2.31.0
+zaproxy>=0.2.0
+python-owasp-zap-v2.4>=0.0.22
+pytest>=8.0.0
